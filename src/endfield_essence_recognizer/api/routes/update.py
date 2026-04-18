@@ -87,14 +87,10 @@ async def install_update_route(
         download_url = None
         if mirror and mirror != "github" and update_manager.update_info:
             mirrors = update_manager.update_info.get("mirrors", {})
-            # 优先使用一图流 API 返回的镜像
+            # 优先使用版本清单中直接提供的镜像地址
             if mirror in mirrors and "downloadUrl" in mirrors[mirror]:
                 download_url = mirrors[mirror]["downloadUrl"]
                 logger.info(f"使用 API 镜像源: {mirror}")
-            elif "cn" in mirrors and "downloadUrl" in mirrors["cn"]:
-                # 国内用户默认走 CN 镜像
-                download_url = mirrors["cn"]["downloadUrl"]
-                logger.info("使用 CN 镜像源")
             else:
                 # 回退到 mirrors.py 中的模板镜像
                 from endfield_essence_recognizer.updater.mirrors import get_mirror_url

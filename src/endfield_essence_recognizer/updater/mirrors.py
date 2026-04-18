@@ -1,4 +1,4 @@
-"""镜像源管理"""
+"""镜像源管理。"""
 
 MIRRORS = {
     "github": "https://github.com/{repo}/releases/download/{tag}/{file}",
@@ -13,13 +13,12 @@ MIRRORS = {
     "ghfast": "https://ghfast.top/https://github.com/{repo}/releases/download/{tag}/{file}",
     # Cloudflare Worker 类
     "gh_api": "https://gh.api.99988866.xyz/https://github.com/{repo}/releases/download/{tag}/{file}",
-    # 兼容 fastgit 思路（部分地区可用）
+    # 兼容 FastGit 思路（部分地区可用）
     "fastgit": "https://download.fastgit.org/{repo}/releases/download/{tag}/{file}",
 }
 
 MIRROR_NAMES = {
     "github": "GitHub 官方",
-    "cn": "一图流 API (CN 镜像)",
     "ghproxy": "GHProxy 官方镜像",
     "ghproxy_net": "GHProxy 镜像（net）",
     "ghproxy_homeboy": "GHProxy 镜像（homeboy）",
@@ -33,6 +32,6 @@ MIRROR_NAMES = {
 
 
 def get_mirror_url(mirror: str, repo: str, tag: str, filename: str) -> str:
-    """获取镜像源 URL"""
+    """获取镜像源 URL。"""
     template = MIRRORS.get(mirror, MIRRORS["github"])
     return template.format(repo=repo, tag=tag, file=filename)

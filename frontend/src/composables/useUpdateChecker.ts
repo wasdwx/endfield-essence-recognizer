@@ -97,10 +97,6 @@ export function useUpdateChecker() {
           latestVersion: result.update_info.version,
           downloadUrl: result.update_info.download_url,
         }
-        // 如果 API 返回了 CN 镜像，默认使用 CN 镜像
-        if (result.update_info.mirrors?.cn?.downloadUrl) {
-          selectedMirror.value = 'cn'
-        }
         hasNewVersionDialog.value = true
       } else if (showIfLatest) {
         isLatestVersionDialog.value = true
