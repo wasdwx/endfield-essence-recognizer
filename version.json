@@ -1,10 +1,10 @@
-﻿{
-    "latestVersion":  "0.9.2",
-    "downloadUrl":  "https://github.com/wasdwx/endfield-essence-recognizer/releases/download/v0.9.2-w/endfield-essence-recognizer-v0.9.2-w-windows.zip",
-    "mirrors":  {
-                    "github":  {
-                                   "downloadUrl":  "https://github.com/wasdwx/endfield-essence-recognizer/releases/download/v0.9.2-w/endfield-essence-recognizer-v0.9.2-w-windows.zip"
-                               }
-                },
-    "sha256":  "3984f0c2f43245a3937ed0e217bce736957bbf08d2864d016cf3b85a3413102b"
+{
+  "latestVersion": "0.9.2",
+  "downloadUrl": "https://github.com/wasdwx/endfield-essence-recognizer/releases/download/v0.9.2/endfield-essence-recognizer-v0.9.2-windows.zip",
+  "mirrors": {
+    "github": {
+      "downloadUrl": "https://github.com/wasdwx/endfield-essence-recognizer/releases/download/v0.9.2/endfield-essence-recognizer-v0.9.2-windows.zip"
+    }
+  },
+  "sha256": "af7297368b607e7f7dfecc7c060ebf449983ff5521c7549587a83cb39e51e3ef"
 }
