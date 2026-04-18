@@ -95,8 +95,9 @@ jobs:
           }
           else {
             git checkout --orphan gh-pages
-            Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
           }
+
+          Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
 
           Copy-Item "$env:GITHUB_WORKSPACE\dist\pages\version.json" ".\version.json" -Force
           if (-not (Test-Path ".nojekyll")) {
