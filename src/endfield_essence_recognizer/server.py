@@ -1,4 +1,4 @@
-import uvicorn
+﻿import uvicorn
 from fastapi import (
     FastAPI,
     Request,
@@ -23,10 +23,10 @@ from endfield_essence_recognizer.utils.log import (
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,  # type: ignore[invalid-argument-type]
-    allow_origins=["*"],
+    allow_origins=['*'],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 
@@ -44,7 +44,7 @@ async def window_not_found_exception_handler(
     """
     return JSONResponse(
         status_code=404,
-        content={"detail": str(exc)},
+        content={'detail': str(exc)},
     )
 
 
@@ -62,7 +62,7 @@ async def window_not_active_exception_handler(
     """
     return JSONResponse(
         status_code=404,
-        content={"detail": str(exc)},
+        content={'detail': str(exc)},
     )
 
 
@@ -79,7 +79,7 @@ async def unsupported_resolution_exception_handler(
     """
     return JSONResponse(
         status_code=400,
-        content={"detail": str(exc)},
+        content={'detail': str(exc)},
     )
 
 
@@ -89,25 +89,28 @@ app.include_router(ws_router)
 
 # Mount game data static files
 app.mount(
-    "/api/data",
+    '/api/data',
     StaticFiles(
-        directory=get_root_dir() / "resources" / "data",
+        directory=get_root_dir() / 'resources' / 'data',
+        check_dir=False,
     ),
-    name="data",
+    name='data',
 )
 app.mount(
-    "/api/assets",
+    '/api/assets',
     StaticFiles(
-        directory=get_root_dir() / "resources" / "assets",
+        directory=get_root_dir() / 'resources' / 'assets',
+        check_dir=False,
     ),
-    name="assets",
+    name='assets',
 )
 app.mount(
-    "/api/images",
+    '/api/images',
     StaticFiles(
-        directory=get_root_dir() / "resources" / "images",
+        directory=get_root_dir() / 'resources' / 'images',
+        check_dir=False,
     ),
-    name="images",
+    name='images',
 )
 
 

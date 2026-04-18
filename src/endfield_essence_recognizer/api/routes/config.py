@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from endfield_essence_recognizer.dependencies import get_user_setting_manager_dep
+from endfield_essence_recognizer.dependencies.services import sync_audio_service_enabled
 from endfield_essence_recognizer.exceptions import ConfigVersionMismatchError
 from endfield_essence_recognizer.schemas.user_setting import UserSetting
 from endfield_essence_recognizer.services.user_setting_manager import UserSettingManager
@@ -22,6 +23,7 @@ async def post_config(
 ) -> UserSetting:
     try:
         user_setting_manager.update_from_user_setting(new_config)
+        sync_audio_service_enabled(new_config.enable_sound)
     except ConfigVersionMismatchError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return user_setting_manager.get_user_setting_ref()

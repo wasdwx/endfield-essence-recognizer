@@ -18,16 +18,14 @@ class Action(StrEnum):
 
 
 class NonFiveStarBehavior(StrEnum):
-    """Enumeration of behaviors for non-5-star essences.
-
-    5-star 即高纯基质（黄色），非5-star即非高纯基质。
-    """
-
     PROCESS = "process"
-    """Process non-5-star essences normally according to other rules."""
-
     SKIP = "skip"
-    """Skip any operations on non-5-star essences."""
+    STOP_SCAN = "stop_scan"
+
+
+class PageFlipMode(StrEnum):
+    WHEEL = "wheel"
+    DRAG = "drag"
 
 
 class EssenceStats(BaseModel):
@@ -37,87 +35,67 @@ class EssenceStats(BaseModel):
 
 
 class UserSetting(BaseModel):
-    _VERSION: ClassVar[int] = 4
+    _VERSION: ClassVar[int] = 5
 
     version: int = _VERSION
 
-    trash_weapon_ids: list[str] = []
-    treasure_essence_stats: list[EssenceStats] = []
+    trash_weapon_ids: list[str] = Field(default_factory=list)
+    treasure_essence_stats: list[EssenceStats] = Field(default_factory=list)
 
     treasure_action: Action = Action.LOCK
     trash_action: Action = Action.UNLOCK
 
     non_five_star_behavior: NonFiveStarBehavior = NonFiveStarBehavior.PROCESS
-    """如何处理非高纯基质：正常处理或直接跳过。"""
 
     high_level_treasure_enabled: bool = False
-    """是否启用高等级基质属性词条判定为宝藏"""
     high_level_treasure_attribute_threshold: int = Field(default=3, ge=1, le=6)
-    """高等级基础属性词条的等级阈值（+1~+6）"""
     high_level_treasure_secondary_threshold: int = Field(default=3, ge=1, le=6)
-    """高等级附加属性词条的等级阈值（+1~+6）"""
     high_level_treasure_skill_threshold: int = Field(default=3, ge=1, le=3)
-    """高等级技能属性词条的等级阈值（+1~+3）"""
 
     auto_page_flip: bool = True
-    """扫描时是否自动翻页"""
+    page_flip_mode: PageFlipMode = PageFlipMode.WHEEL
+    enable_sound: bool = True
 
     update_mirror: str = "github"
-    """更新镜像源：github, ghproxy, fastgit"""
     update_proxy: str = ""
-    """更新代理地址，如 http://127.0.0.1:7890"""
 
     @staticmethod
     def _migrate_v2_to_v3(data: dict) -> None:
-        """v2 → v3: 补充 v2 期间新增但未更新版本号的字段"""
         data.setdefault("non_five_star_behavior", "process")
         data.setdefault("auto_page_flip", True)
 
     @staticmethod
     def _migrate_v3_to_v4(data: dict) -> None:
-        """v3 → v4: 添加更新镜像源和代理配置"""
         data.setdefault("update_mirror", "github")
         data.setdefault("update_proxy", "")
 
-    # 迁移函数映射表：版本号 -> 迁移函数
-    # 使用 __func__ 提取底层函数，避免存储 staticmethod 对象（兼容性更好）
+    @staticmethod
+    def _migrate_v4_to_v5(data: dict) -> None:
+        data.setdefault("page_flip_mode", "wheel")
+        data.setdefault("enable_sound", True)
+
     _MIGRATIONS: ClassVar[dict[int, Any]] = {
         2: _migrate_v2_to_v3.__func__,
         3: _migrate_v3_to_v4.__func__,
+        4: _migrate_v4_to_v5.__func__,
     }
 
     @classmethod
     def migrate_from_old_version(cls, old_data: dict) -> UserSetting:
-        """从旧版本配置迁移到当前版本
-
-        Args:
-            old_data: 旧版本的配置字典
-
-        Returns:
-            迁移后的 UserSetting 实例
-
-        Raises:
-            ValueError: 如果版本号无效或缺少迁移路径
-        """
         old_version = old_data.get("version", 1)
 
-        # 验证版本号有效性
         if old_version < 1:
-            raise ValueError(f"无效的配置版本: {old_version}")
+            raise ValueError(f"配置版本非法: {old_version}")
         if old_version > cls._VERSION:
-            raise ValueError("配置文件版本过高，请更新程序")
+            raise ValueError("配置版本高于当前程序支持的版本")
 
-        # 链式迁移：逐版本升级
         while old_version < cls._VERSION:
             if old_version not in cls._MIGRATIONS:
-                raise ValueError(f"缺少迁移路径: v{old_version} → v{old_version + 1}")
+                raise ValueError(f"缺少迁移链: v{old_version} -> v{old_version + 1}")
             cls._MIGRATIONS[old_version](old_data)
             old_version += 1
 
-        # 更新版本号
         old_data["version"] = cls._VERSION
-
-        # 验证并返回
         return cls.model_validate(old_data)
 
     def update_from_model(self, other: UserSetting) -> None:

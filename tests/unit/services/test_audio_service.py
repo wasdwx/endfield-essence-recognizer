@@ -78,6 +78,30 @@ def test_audio_service_play_disable(mock_winsound):
     assert args[0] == "fake/path/disable.wav"
 
 
+@patch("endfield_essence_recognizer.services.audio_service.winsound")
+def test_audio_service_disabled_skips_playback(mock_winsound):
+    """Test that disabled audio service does not attempt playback."""
+    mock_path = MagicMock(spec=Path)
+    mock_path.exists.return_value = True
+    mock_path.__str__.return_value = "fake/path/disable.wav"  # type: ignore
+
+    profile = AudioServiceProfile(
+        enable_sound=SoundResource(path=mock_path),
+        disable_sound=SoundResource(path=mock_path),
+    )
+
+    service = AudioService(profile)
+    service.set_enabled(False)
+
+    with patch("importlib.resources.as_file") as mock_as_file:
+        mock_as_file.return_value.__enter__.return_value = mock_path
+        service.play_enable()
+        service.play_disable()
+
+    assert service.is_enabled() is False
+    mock_winsound.PlaySound.assert_not_called()
+
+
 @patch("endfield_essence_recognizer.services.audio_service.logger")
 def test_sound_player_missing_resource(mock_logger):
     """Test that SoundPlayer handles missing resource gracefully."""

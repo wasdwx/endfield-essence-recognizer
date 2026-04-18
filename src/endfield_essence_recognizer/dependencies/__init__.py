@@ -18,9 +18,11 @@ from .recognition import (
 )
 from .services import (
     get_audio_service,
+    get_data_update_service,
     get_log_service,
     get_scanner_service,
     get_screenshot_service,
+    get_static_data_runtime,
     get_static_data_service,
     get_static_game_data,
     get_system_service,
@@ -44,6 +46,7 @@ __all__ = [
     "get_attribute_recognizer_dep",
     "get_audio_service",
     "get_config_path_dep",
+    "get_data_update_service",
     "get_delivery_claimer_engine_dep",
     "get_delivery_job_reward_recognizer_dep",
     "get_delivery_scene_recognizer_dep",
@@ -58,6 +61,7 @@ __all__ = [
     "get_scanner_service",
     "get_screenshot_service",
     "get_screenshots_dir_dep",
+    "get_static_data_runtime",
     "get_static_data_service",
     "get_static_game_data",
     "get_system_service",

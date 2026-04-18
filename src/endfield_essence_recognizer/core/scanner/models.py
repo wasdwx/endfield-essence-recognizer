@@ -45,6 +45,14 @@ class EssenceData:
     """The identified 'lock' button state."""
 
 
+@dataclass(frozen=True)
+class CustomTreasureMatch:
+    key: str
+    attribute: str | None
+    secondary: str | None
+    skill: str | None
+
+
 @dataclass
 class EvaluationResult:
     """The judgement result of an essence after evaluation against user settings."""
@@ -55,11 +63,20 @@ class EvaluationResult:
     log_message: str
     """The formatted log message to show to the user (contains color tags)."""
 
+    should_stop_scan: bool = False
+    """Whether the current scan should stop immediately after this result."""
+
     matched_weapons: set[WeaponId] = field(default_factory=set)
     """Set of weapon IDs that this essence is suitable for."""
 
-    matched_weapons_all_blocked: bool = False
-    """True if all weapons in matched_weapons are blocked by the user (trash_weapon_ids)."""
+    matched_non_trash_weapons: set[WeaponId] = field(default_factory=set)
+    """
+    Set of non-trash weapon IDs that this essence matches (excluding user-blocked weapons).
+    Used for incrementing weapon essence counts.
+    """
 
     is_high_level: bool = False
     """Whether any attribute on the essence exceeded a high-level threshold."""
+
+    matched_custom_treasures: tuple[CustomTreasureMatch, ...] = ()
+    """Matched custom treasure configurations for later summary aggregation."""

@@ -1,101 +1,213 @@
 import threading
+from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
+from endfield_essence_recognizer.schemas.scan_summary import (
+    CustomTreasureSummaryState,
+    ScanSummaryState,
+)
 from endfield_essence_recognizer.services.scanner_service import ScannerService
 
 
+class FakeScanner:
+    def __init__(
+        self,
+        counts: dict[str, int] | None = None,
+        summary: ScanSummaryState | None = None,
+    ) -> None:
+        self._counts = counts or {}
+        self._summary = summary
+        self.started = threading.Event()
+        self.block = threading.Event()
+        self.execute_call_count = 0
+
+    def execute(self, _stop_event) -> None:
+        self.execute_call_count += 1
+        self.started.set()
+        self.block.wait()
+
+    def get_weapon_essence_counts(self) -> dict[str, int]:
+        return self._counts.copy()
+
+    def get_scan_summary(self) -> ScanSummaryState | None:
+        return (
+            self._summary.model_copy(deep=True) if self._summary is not None else None
+        )
+
+
 def test_scanner_service_start_scan():
-    """
-    Test starting the scanner service.
-
-    Verifies that start_scan() correctly spawns a thread and calls execute().
-    """
-    # Event used to signal that the worker thread has actually started executing
-    execute_called = threading.Event()
-    # Event used to block the worker thread so we can test the 'is_running' state
-    block_execute = threading.Event()
-
-    def mock_execute(stop_event):
-        execute_called.set()  # Tell the main test thread we started
-        block_execute.wait()  # Wait here until the test tells us to finish
-
-    mock_scanner = MagicMock()
-    mock_scanner.execute = mock_execute
+    scanner = FakeScanner()
     service = ScannerService()
 
     assert not service.is_running()
-    service.start_scan(scanner_factory=lambda: mock_scanner)
+    service.start_scan(scanner_factory=lambda: scanner)
 
-    # Wait for the worker thread to reach the execute_called.set() line
-    assert execute_called.wait(timeout=1.0)
+    assert scanner.started.wait(timeout=1.0)
     assert service.is_running()
 
-    # We must unblock the mock_execute function, otherwise stop_scan()
-    # will hang forever while trying to join() the thread.
-    block_execute.set()
+    scanner.block.set()
     service.stop_scan()
     assert not service.is_running()
 
 
 def test_scanner_service_toggle_scan():
-    """
-    Test toggling the scanner service.
-
-    Verifies that toggle_scan() switches between running and stopped states.
-    """
-    execute_called = threading.Event()
-    block_execute = threading.Event()
-
-    def mock_execute(stop_event):
-        execute_called.set()
-        block_execute.wait()
-
-    mock_scanner = MagicMock()
-    mock_scanner.execute = mock_execute
+    scanner = FakeScanner()
     service = ScannerService()
 
-    # First toggle: Start the scan
-    service.toggle_scan(scanner_factory=lambda: mock_scanner)
-    assert execute_called.wait(timeout=1.0)
+    service.toggle_scan(scanner_factory=lambda: scanner)
+    assert scanner.started.wait(timeout=1.0)
     assert service.is_running()
 
-    # Second toggle: Stop the scan
-    # We unblock the worker so the join() inside toggle_scan can complete
-    block_execute.set()
-    service.toggle_scan(scanner_factory=lambda: mock_scanner)
+    scanner.block.set()
+    service.toggle_scan(scanner_factory=lambda: scanner)
     assert not service.is_running()
     assert service._stop_event.is_set()
 
 
 def test_scanner_service_already_running():
-    """
-    Test starting the scanner service when it's already active.
+    scanner = FakeScanner()
+    service = ScannerService()
 
-    Verifies that multiple calls to start_scan() do not spawn multiple threads.
-    """
-    execute_event = threading.Event()
-    block_event = threading.Event()
+    service.start_scan(scanner_factory=lambda: scanner)
+    assert scanner.started.wait(timeout=1.0)
 
-    mock_scanner = MagicMock()
+    service.start_scan(scanner_factory=lambda: FakeScanner())
 
-    def side_effect(stop_event):
-        execute_event.set()
-        block_event.wait()
+    assert scanner.execute_call_count == 1
 
-    mock_scanner.execute.side_effect = side_effect
+    scanner.block.set()
+    service.stop_scan()
+
+
+def test_scanner_service_preserves_live_and_last_counts():
+    scanner = FakeScanner(counts={"wpn_test": 2})
+    service = ScannerService()
+
+    service.start_scan(scanner_factory=lambda: scanner)
+    assert scanner.started.wait(timeout=1.0)
+    assert service.get_weapon_essence_counts() == {"wpn_test": 2}
+
+    scanner.block.set()
+    service._thread.join(timeout=1.0)  # type: ignore[union-attr]
+
+    assert not service.is_running()
+    assert service.get_weapon_essence_counts() == {"wpn_test": 2}
+
+
+def test_scanner_service_loads_persisted_summary(monkeypatch, tmp_path: Path):
+    summary_path = tmp_path / "scan_summary_state.json"
+    summary = ScanSummaryState(
+        scanned_at=datetime(2026, 4, 10, 12, 0, 0),
+        total_essence_count=5,
+        weapon_counts={"weapon_a": 2},
+        weapon_best_level_combos={"weapon_a": [(2, 1, 1)]},
+        custom_treasures=[
+            CustomTreasureSummaryState(
+                key="A|B|C",
+                attribute="A",
+                secondary="B",
+                skill="C",
+                count=1,
+                best_level_combos=[(2, 1, 1)],
+            )
+        ],
+    )
+    summary_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
+    monkeypatch.setattr(
+        "endfield_essence_recognizer.services.scanner_service.get_scan_summary_state_path",
+        lambda: summary_path,
+    )
 
     service = ScannerService()
 
-    # Start the first time
-    service.start_scan(scanner_factory=lambda: mock_scanner)
-    assert execute_event.wait(timeout=1.0)
+    assert service.get_weapon_essence_counts() == {"weapon_a": 2}
+    loaded_summary = service.get_last_scan_summary()
+    assert loaded_summary is not None
+    assert loaded_summary.total_essence_count == 5
+    assert loaded_summary.custom_treasures[0].best_level_combos == [(2, 1, 1)]
 
-    # Calling it again while the first one is blocked should do nothing
-    service.start_scan(scanner_factory=lambda: mock_scanner)
 
-    # Verify that mock_scanner.execute was only called once
-    assert mock_scanner.execute.call_count == 1
+def test_scanner_service_persists_summary_after_scan(monkeypatch, tmp_path: Path):
+    summary_path = tmp_path / "scan_summary_state.json"
+    monkeypatch.setattr(
+        "endfield_essence_recognizer.services.scanner_service.get_scan_summary_state_path",
+        lambda: summary_path,
+    )
+    summary = ScanSummaryState(
+        scanned_at=datetime(2026, 4, 10, 12, 0, 0),
+        total_essence_count=7,
+        weapon_counts={"weapon_a": 3},
+        weapon_best_level_combos={"weapon_a": [(2, 1, 1), (2, 1, 1)]},
+        custom_treasures=[
+            CustomTreasureSummaryState(
+                key="A|B|C",
+                attribute="A",
+                secondary="B",
+                skill="C",
+                count=2,
+                best_level_combos=[(2, 1, 1), (2, 1, 1)],
+            )
+        ],
+    )
+    scanner = FakeScanner(counts={"weapon_a": 3}, summary=summary)
+    service = ScannerService()
 
-    # Cleanup
-    block_event.set()
-    service.stop_scan()
+    service.start_scan(scanner_factory=lambda: scanner)
+    assert scanner.started.wait(timeout=1.0)
+
+    scanner.block.set()
+    service._thread.join(timeout=1.0)  # type: ignore[union-attr]
+
+    assert summary_path.exists()
+    saved = ScanSummaryState.model_validate_json(
+        summary_path.read_text(encoding="utf-8")
+    )
+    assert saved.total_essence_count == 7
+    assert saved.weapon_counts == {"weapon_a": 3}
+    assert saved.custom_treasures[0].count == 2
+
+
+def test_scanner_service_logs_persisted_summary(monkeypatch, tmp_path: Path):
+    summary_path = tmp_path / "scan_summary_state.json"
+    summary = ScanSummaryState(
+        scanned_at=datetime(2026, 4, 10, 12, 0, 0),
+        total_essence_count=5,
+        weapon_counts={"weapon_a": 2},
+        weapon_best_level_combos={"weapon_a": [(2, 1, 1), (2, 1, 1)]},
+        custom_treasures=[],
+    )
+    summary_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
+    monkeypatch.setattr(
+        "endfield_essence_recognizer.services.scanner_service.get_scan_summary_state_path",
+        lambda: summary_path,
+    )
+    messages: list[str] = []
+
+    class FakeLogger:
+        def opt(self, **_kwargs):
+            return self
+
+        def success(self, message, *args):
+            messages.append(message.format(*args) if args else message)
+
+    monkeypatch.setattr(
+        "endfield_essence_recognizer.services.scanner_service.logger", FakeLogger()
+    )
+    static_game_data = MagicMock()
+    weapon = MagicMock()
+    weapon.name = "TestWeapon"
+    weapon.rarity = 6
+    weapon.weapon_type = "sword"
+    weapon_type = MagicMock()
+    weapon_type.name = "Sword"
+    static_game_data.get_weapon.return_value = weapon
+    static_game_data.get_weapon_type.return_value = weapon_type
+    static_game_data.get_rarity_color.return_value = "#FFD700"
+
+    service = ScannerService()
+    service.log_last_scan_summary(static_game_data)
+
+    assert any("上次扫描时间" in msg for msg in messages)
+    assert any("TestWeapon" in msg for msg in messages)
+    assert any("最优 <green><bold>+2/+1/+1（2次）" in msg for msg in messages)

@@ -126,3 +126,48 @@ def test_get_rarity_color(static_game_data):
 
     # Fallback
     assert static_game_data.get_rarity_color(99) == "#FFFFFF"
+
+
+def test_load_data_prefers_override_files_and_falls_back_for_missing_files(
+    mock_data_root, tmp_path
+):
+    override_root = tmp_path / "override"
+    override_root.mkdir()
+
+    override_weapon_data = {
+        "weapon_1": {
+            "weapon_id": "weapon_1",
+            "name": "Override Weapon",
+            "weapon_type": "SWORD",
+            "rarity": 4,
+            "icon_id": "icon_override",
+            "stat1_id": "stat_a",
+            "stat2_id": "stat_b",
+            "stat3_id": None,
+        }
+    }
+    (override_root / "Weapon.json").write_text(
+        json.dumps(override_weapon_data),
+        encoding="utf-8",
+    )
+
+    override_type_data = {
+        "SWORD": {
+            "weapon_type_id": "SWORD",
+            "name": "Override Sword",
+            "wiki_group_id": "group_1",
+            "icon_id": "icon_t1",
+            "sort_order": 1,
+        }
+    }
+    (override_root / "WeaponType.json").write_text(
+        json.dumps(override_type_data),
+        encoding="utf-8",
+    )
+
+    data = StaticGameData(override_root, fallback_root=mock_data_root)
+
+    assert data.get_weapon("weapon_1").name == "Override Weapon"  # type: ignore[union-attr]
+    assert data.get_weapon_type(WeaponTypeId.SWORD).name == "Override Sword"  # type: ignore[union-attr]
+    assert data.get_stat("stat_a").name == "Stat A"  # type: ignore[union-attr]
+    assert data.get_rarity_color(4) == "#9452FA"

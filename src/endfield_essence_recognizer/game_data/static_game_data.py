@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from importlib.resources.abc import Traversable
+
 from endfield_essence_recognizer.game_data.models.v2 import (
     EssenceStatV2,
     StatId,
@@ -11,9 +14,6 @@ from endfield_essence_recognizer.game_data.models.v2 import (
     WeaponTypeV2,
     WeaponV2,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # helper type alias
 type OptStatId = StatId | None
@@ -30,8 +30,13 @@ class StaticGameData:
     this class should be accessed as a singleton for efficiency.
     """
 
-    def __init__(self, data_root: Path) -> None:
+    def __init__(
+        self,
+        data_root: Traversable,
+        fallback_root: Traversable | None = None,
+    ) -> None:
         self._data_root = data_root
+        self._fallback_root = fallback_root
         self._weapons: dict[WeaponId, WeaponV2] = {}
         self._stats: dict[StatId, EssenceStatV2] = {}
         self._weapon_types: dict[WeaponTypeId, WeaponTypeV2] = {}
@@ -49,37 +54,46 @@ class StaticGameData:
         self._load_data()
         self._index_data()
 
+    def _resolve_data_file(self, name: str) -> Traversable:
+        for root in (self._data_root, self._fallback_root):
+            if root is None:
+                continue
+            candidate = root / name
+            if candidate.is_file():
+                return candidate
+        raise FileNotFoundError(name)
+
     def _load_data(self) -> None:
         """Loads all V2 JSON data files into internal dictionaries."""
         try:
             # Load Weapons
-            weapon_file = self._data_root / "Weapon.json"
-            with open(weapon_file, encoding="utf-8") as f:
-                weapon_data = json.load(f)
-                for w_id, data in weapon_data.items():
-                    weapon = WeaponV2(**data)
-                    self._weapons[w_id] = weapon
+            weapon_data = json.loads(
+                self._resolve_data_file("Weapon.json").read_text(encoding="utf-8")
+            )
+            for w_id, data in weapon_data.items():
+                weapon = WeaponV2(**data)
+                self._weapons[w_id] = weapon
 
             # Load Stats
-            stat_file = self._data_root / "EssenceStat.json"
-            with open(stat_file, encoding="utf-8") as f:
-                stat_data = json.load(f)
-                for s_id, data in stat_data.items():
-                    self._stats[s_id] = EssenceStatV2(**data)
+            stat_data = json.loads(
+                self._resolve_data_file("EssenceStat.json").read_text(encoding="utf-8")
+            )
+            for s_id, data in stat_data.items():
+                self._stats[s_id] = EssenceStatV2(**data)
 
             # Load Weapon Types
-            type_file = self._data_root / "WeaponType.json"
-            with open(type_file, encoding="utf-8") as f:
-                type_data = json.load(f)
-                for t_id, data in type_data.items():
-                    self._weapon_types[WeaponTypeId(t_id)] = WeaponTypeV2(**data)
+            type_data = json.loads(
+                self._resolve_data_file("WeaponType.json").read_text(encoding="utf-8")
+            )
+            for t_id, data in type_data.items():
+                self._weapon_types[WeaponTypeId(t_id)] = WeaponTypeV2(**data)
 
             # Load Rarity Colors
-            rarity_file = self._data_root / "RarityColor.json"
-            with open(rarity_file, encoding="utf-8") as f:
-                rarity_data = json.load(f)
-                for r_id, data in rarity_data.items():
-                    self._rarity_colors[int(r_id)] = data["color"]
+            rarity_data = json.loads(
+                self._resolve_data_file("RarityColor.json").read_text(encoding="utf-8")
+            )
+            for r_id, data in rarity_data.items():
+                self._rarity_colors[int(r_id)] = data["color"]
         except Exception as e:
             raise RuntimeError(f"Failed to load static game data V2: {e}") from e
 

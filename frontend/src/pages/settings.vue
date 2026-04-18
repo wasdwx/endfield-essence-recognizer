@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <v-container>
     <v-expansion-panels color="primary-darken-1" :model-value="[0, 1, 2]" multiple>
       <v-expansion-panel :value="0">
@@ -86,6 +86,7 @@
           </template>
         </v-expansion-panel-text>
       </v-expansion-panel>
+
       <v-expansion-panel :value="1">
         <v-expansion-panel-title>自定义宝藏基质</v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -155,16 +156,14 @@
               >
                 当前效果：如果基质的基础属性等级 ≥{{
                   highLevelTreasureAttributeThreshold
-                }}，或者附加属性等级 ≥{{ highLevelTreasureSecondaryThreshold }}，或者技能属性等级
-                ≥{{ highLevelTreasureSkillThreshold }}，则也将其视为宝藏。
+                }}，或者附加属性等级 ≥{{ highLevelTreasureSecondaryThreshold }}，或者技能属性等级 ≥{{
+                  highLevelTreasureSkillThreshold
+                }}，则也将其视为宝藏。
               </v-alert>
             </v-col>
           </v-row>
           <v-divider class="my-4" />
           <h2>额外将以下属性的基质视为宝藏</h2>
-          <v-alert v-if="false" border="start" class="my-4" type="info" variant="tonal">
-            请点击右侧（或者下方）的加号按钮添加新的基质属性行，点击删除按钮删除对应行。上下箭头按钮可调整行顺序。
-          </v-alert>
           <v-row v-for="(essenceStat, index) in treasureEssenceStats" :key="index" align="center">
             <v-col cols="12" md="3" sm="6">
               <v-select
@@ -282,6 +281,7 @@
           </v-row>
         </v-expansion-panel-text>
       </v-expansion-panel>
+
       <v-expansion-panel :value="2">
         <v-expansion-panel-title>操作设置</v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -297,15 +297,80 @@
                 @update:model-value="onStatusPollingToggle"
               />
               <v-alert border="start" class="mt-2" type="info" variant="tonal">
-                启用后，前端会轮询更新扫描状态和基质数量。禁用可减少网络请求以避免日志膨胀。
-                <!-- [TODO] uvicorn 日志改等级? 之后默认启用 -->
+                启用后，前端会轮询更新扫描状态、武器统计和武器数据更新状态；禁用后可减少请求频率。
               </v-alert>
             </v-col>
           </v-row>
+
+          <v-divider class="my-4" />
+          <h2>武器数据热更新</h2>
+          <v-alert border="start" class="mb-4" type="info" variant="tonal">
+            武器数据会从 GitHub Pages 清单读取，只覆盖武器相关静态数据，不影响程序本体更新逻辑。
+          </v-alert>
+          <v-card variant="outlined">
+            <v-card-text class="d-flex flex-column ga-2">
+              <div>当前数据来源：{{ dataUpdateSourceText }}</div>
+              <div>已应用版本：{{ dataUpdateStatus?.appliedVersion || '暂无' }}</div>
+              <div v-if="dataUpdateStatus?.pendingVersion">
+                待应用版本：{{ dataUpdateStatus.pendingVersion }}
+              </div>
+              <div>最近检查版本：{{ dataUpdateStatus?.lastCheckedVersion || '暂无' }}</div>
+              <div>最近检查时间：{{ formatDataUpdateTime(dataUpdateStatus?.lastCheckedAt) }}</div>
+              <div>最近下载时间：{{ formatDataUpdateTime(dataUpdateStatus?.lastDownloadedAt) }}</div>
+              <div>最近应用时间：{{ formatDataUpdateTime(dataUpdateStatus?.lastAppliedAt) }}</div>
+              <div v-if="dataUpdateStatus?.pendingApply" class="text-warning">
+                当前扫描正在进行中，更新将在扫描结束后自动应用。
+              </div>
+              <div v-else-if="dataUpdateStatus?.updateAvailable" class="text-info">
+                已检测到新的武器数据版本。
+              </div>
+              <div v-if="dataUpdateStatus?.lastError" class="text-error">
+                最近错误：{{ dataUpdateStatus.lastError }}
+              </div>
+            </v-card-text>
+            <v-card-actions>
+              <v-btn
+                color="primary"
+                :loading="isCheckingDataUpdate"
+                prepend-icon="mdi-magnify"
+                variant="text"
+                @click="checkWeaponDataUpdate()"
+              >
+                检查武器数据更新
+              </v-btn>
+              <v-btn
+                color="primary"
+                :loading="isDownloadingDataUpdate"
+                prepend-icon="mdi-download"
+                variant="elevated"
+                @click="downloadWeaponDataUpdate()"
+              >
+                下载并应用
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+
+          <v-divider class="my-4" />
+          <h2>声音提示</h2>
+          <v-row class="my-4">
+            <v-col cols="12" md="6">
+              <v-switch
+                v-model="enableSound"
+                color="primary"
+                density="comfortable"
+                hide-details
+                label="启用扫描启停提示音"
+              />
+              <v-alert border="start" class="mt-2" type="info" variant="tonal">
+                启用后，开始扫描和停止扫描时会播放提示音。
+              </v-alert>
+            </v-col>
+          </v-row>
+
           <v-divider class="my-4" />
           <h2>扫描时自动翻页</h2>
           <v-alert border="start" class="mb-4" type="info" variant="tonal">
-            启用后，扫描完当前页会自动拖动翻页继续扫描，直到滚动条到达底部。
+            启用后，扫描完当前页会按所选方式自动翻页继续扫描，直到滚动条到达底部。
           </v-alert>
           <v-switch
             v-model="autoPageFlip"
@@ -314,16 +379,29 @@
             hide-details
             label="启用自动翻页扫描"
           />
-          <v-divider class="my-4" />
-          <h2>遇到非无瑕基质（即遇到非橙色基质）时，该如何操作？</h2>
-          <v-radio-group v-model="nonFiveStarBehavior" color="primary" density="comfortable" inline>
-            <v-radio label="跳过对它的操作" value="skip" />
-            <v-radio label="继续操作（当作无瑕基质进行操作）" value="process" />
+          <v-radio-group
+            v-model="pageFlipMode"
+            color="primary"
+            density="comfortable"
+            :disabled="!autoPageFlip"
+            inline
+          >
+            <v-radio label="滚轮" value="wheel" />
+            <v-radio label="拖拽" value="drag" />
           </v-radio-group>
+
+          <v-divider class="my-4" />
+          <h2>遇到非无瑕基质（即非橙色基质）时，该如何操作？</h2>
+          <v-radio-group v-model="nonFiveStarBehavior" color="primary" density="comfortable" inline>
+            <v-radio label="跳过当前项" value="skip" />
+            <v-radio label="结束本次扫描" value="stop_scan" />
+            <v-radio label="继续处理（按无瑕基质逻辑）" value="process" />
+          </v-radio-group>
+
           <v-divider class="my-4" />
           <h2>遇到宝藏基质或者养成材料时，该如何操作？</h2>
           <v-alert border="start" class="mb-4" type="info" variant="tonal">
-            “宝藏基质”和“养成材料”仅为分类简称，不是宝藏的基质都视为养成材料。
+            “宝藏基质”和“养成材料”仅为分类简称，不是宝藏的基质都会被视作养成材料。
           </v-alert>
           <v-row>
             <v-col cols="12" md="6">
@@ -332,9 +410,9 @@
                 <v-radio label="不去动它" value="keep" />
                 <v-radio label="把它锁上" value="lock" />
                 <v-radio disabled label="把它标记为弃用" value="deprecate" />
-                <v-radio label="如果锁着，则解锁" value="unlock"></v-radio>
+                <v-radio label="如果锁着，则解锁" value="unlock" />
                 <v-radio label="如果已标记为弃用，则取消弃用" value="undeprecate" />
-                <v-radio label="解锁且取消弃用" value="unlock_and_undeprecate"></v-radio>
+                <v-radio label="解锁且取消弃用" value="unlock_and_undeprecate" />
                 <v-radio disabled label="如果没有上锁，则弃用" value="deprecate_if_not_locked" />
                 <v-radio label="如果没有弃用，则上锁" value="lock_if_not_deprecated" />
               </v-radio-group>
@@ -353,9 +431,13 @@
               </v-radio-group>
             </v-col>
           </v-row>
+
           <v-divider class="my-4" />
-          <h2>更新设置</h2>
-          <v-row class="my-4">
+          <h2>程序更新设置</h2>
+          <v-alert border="start" class="mb-4" type="info" variant="tonal">
+            程序版本信息会从 GitHub Pages 清单读取，安装包仍通过 GitHub Releases 与镜像下载。
+          </v-alert>
+          <v-row>
             <v-col cols="12" md="6">
               <v-select
                 v-model="updateMirror"
@@ -402,29 +484,69 @@
         </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
+
     <v-card class="mt-4" variant="outlined">
       <v-card-text class="text-center text-caption text-medium-emphasis">
         配置版本: v{{ configVersion }}
       </v-card-text>
     </v-card>
   </v-container>
+
+  <v-snackbar v-model="successDialogVisible" color="success">
+    {{ dialogMessage }}
+    <template #actions>
+      <v-btn variant="text" @click="dismissDialogs">关闭</v-btn>
+    </template>
+  </v-snackbar>
+
+  <v-snackbar v-model="infoDialogVisible" color="info">
+    {{ dialogMessage }}
+    <template #actions>
+      <v-btn variant="text" @click="dismissDialogs">关闭</v-btn>
+    </template>
+  </v-snackbar>
+
+  <v-snackbar v-model="errorDialogVisible" color="error">
+    {{ dialogMessage }}
+    <template #actions>
+      <v-btn variant="text" @click="dismissDialogs">关闭</v-btn>
+    </template>
+  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import ItemIcon from '@/components/ItemIcon.vue'
+import { useDataUpdate } from '@/composables/useDataUpdate'
 import { setScanningStatusPolling, useScanningStatus } from '@/composables/useScanningStatus'
 import { useUpdateMirrors } from '@/composables/useUpdateMirrors'
 import { useStaticData } from '@/utils/gameData/staticData'
 import { getGemTagName, getStatsForWeapon } from '@/utils/gameData/weapon'
 
 const theme = useTheme()
-const { weaponTypes, weaponsMap, rarityColors, essencesMap } = useStaticData()
+const { weaponTypes, weaponsMap, rarityColors, essencesMap, isLoaded, fetchStaticData } =
+  useStaticData()
 const { isScanning, pollingEnabled } = useScanningStatus()
 const { mirrorOptions } = useUpdateMirrors()
+const {
+  status: dataUpdateStatus,
+  isChecking: isCheckingDataUpdate,
+  isDownloading: isDownloadingDataUpdate,
+  successDialogVisible,
+  infoDialogVisible,
+  errorDialogVisible,
+  dialogMessage,
+  dismissDialogs,
+  fetchDataUpdateStatus,
+  checkWeaponDataUpdate,
+  downloadWeaponDataUpdate,
+} = useDataUpdate()
+
 const statusPollingEnabled = ref(pollingEnabled)
 const configVersion = ref(0)
+const loadedTrashWeaponIds = ref<string[]>([])
+const hasLoadedConfig = ref(false)
 
 const allAttributeStats = computed(() =>
   Array.from(essencesMap.value.values())
@@ -454,6 +576,8 @@ const treasureAction = ref('lock')
 const trashAction = ref('unlock')
 const nonFiveStarBehavior = ref('process')
 const autoPageFlip = ref(true)
+const pageFlipMode = ref('wheel')
+const enableSound = ref(true)
 const highLevelTreasureEnabled = ref(false)
 const highLevelTreasureAttributeThreshold = ref(3)
 const highLevelTreasureSecondaryThreshold = ref(3)
@@ -462,6 +586,13 @@ const updateMirror = ref('github')
 const updateProxyEnabled = ref(false)
 const updateProxyPort = ref('7890')
 const weaponEssenceCounts = ref<Record<string, number>>({})
+
+const dataUpdateSourceText = computed(() => {
+  if (!dataUpdateStatus.value) {
+    return '未知'
+  }
+  return dataUpdateStatus.value.currentDataSource === 'override' ? '热更新覆盖' : '内置资源'
+})
 
 const notSelectedWeaponIds = computed(() => {
   return Array.from(weaponsMap.value.keys()).filter(
@@ -474,11 +605,24 @@ const selectedMirrorName = computed(() => {
   return mirror ? mirror.title : 'GitHub 官方'
 })
 
+function formatDataUpdateTime(value: string | null | undefined): string {
+  if (!value) {
+    return '暂无'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString()
+}
+
 function getWeaponStatsDescription(weaponId: string): string {
   const stats = getStatsForWeapon(weaponId)
   if (!stats.attribute && !stats.secondary && !stats.skill) {
-    return '无基质属性'
+    return '暂无词条信息'
   }
+
   const parts: string[] = []
   if (stats.attribute) {
     parts.push(getGemTagName(stats.attribute))
@@ -489,7 +633,7 @@ function getWeaponStatsDescription(weaponId: string): string {
   if (stats.skill) {
     parts.push(getGemTagName(stats.skill))
   }
-  return parts.join('、')
+  return parts.join(' / ')
 }
 
 function raritySelectAll(rarity: number, select: boolean) {
@@ -548,13 +692,15 @@ function isTypePartiallySelected(groupId: string): boolean {
 const config = computed(() => {
   const proxyUrl = updateProxyEnabled.value ? `http://127.0.0.1:${updateProxyPort.value}` : ''
   return {
-    version: 4,
+    version: 5,
     trash_weapon_ids: notSelectedWeaponIds.value,
     treasure_essence_stats: treasureEssenceStats.value,
     treasure_action: treasureAction.value,
     trash_action: trashAction.value,
     non_five_star_behavior: nonFiveStarBehavior.value,
     auto_page_flip: autoPageFlip.value,
+    page_flip_mode: pageFlipMode.value,
+    enable_sound: enableSound.value,
     high_level_treasure_enabled: highLevelTreasureEnabled.value,
     high_level_treasure_attribute_threshold: highLevelTreasureAttributeThreshold.value,
     high_level_treasure_secondary_threshold: highLevelTreasureSecondaryThreshold.value,
@@ -565,7 +711,11 @@ const config = computed(() => {
 })
 
 async function getConfig() {
-  const response = await fetch(`/api/config`)
+  const response = await fetch('/api/config')
+  if (!response.ok) {
+    throw new Error(`/api/config -> ${response.status}`)
+  }
+
   const result = await response.json()
   const {
     version,
@@ -575,6 +725,8 @@ async function getConfig() {
     trash_action,
     non_five_star_behavior,
     auto_page_flip,
+    page_flip_mode,
+    enable_sound,
     high_level_treasure_enabled,
     high_level_treasure_attribute_threshold,
     high_level_treasure_secondary_threshold,
@@ -582,19 +734,21 @@ async function getConfig() {
     update_mirror,
     update_proxy,
   } = result
+
   configVersion.value = version
   treasureEssenceStats.value = treasure_essence_stats
   treasureAction.value = treasure_action
   trashAction.value = trash_action
   nonFiveStarBehavior.value = non_five_star_behavior || 'process'
   autoPageFlip.value = auto_page_flip !== undefined ? auto_page_flip : true
+  pageFlipMode.value = page_flip_mode || 'wheel'
+  enableSound.value = enable_sound !== undefined ? enable_sound : true
   highLevelTreasureEnabled.value = high_level_treasure_enabled
   highLevelTreasureAttributeThreshold.value = high_level_treasure_attribute_threshold
   highLevelTreasureSecondaryThreshold.value = high_level_treasure_secondary_threshold
   highLevelTreasureSkillThreshold.value = high_level_treasure_skill_threshold
   updateMirror.value = update_mirror || 'github'
 
-  // 解析代理配置
   if (update_proxy) {
     updateProxyEnabled.value = true
     const match = update_proxy.match(/:(\d+)$/)
@@ -604,13 +758,15 @@ async function getConfig() {
     updateProxyPort.value = '7890'
   }
 
+  loadedTrashWeaponIds.value = trash_weapon_ids
   selectedWeaponIds.value = Array.from(weaponsMap.value.keys()).filter(
     (weaponId) => !trash_weapon_ids.includes(weaponId),
   )
+  hasLoadedConfig.value = true
 }
 
 async function postConfig() {
-  await fetch(`/api/config`, {
+  await fetch('/api/config', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -621,55 +777,122 @@ async function postConfig() {
 
 async function fetchWeaponEssenceCounts() {
   try {
-    const response = await fetch(`/api/weapon_essence_counts`)
+    const response = await fetch('/api/weapon_essence_counts')
     const result = await response.json()
-    weaponEssenceCounts.value = result.counts
+    weaponEssenceCounts.value = result
   } catch (error) {
     console.error('Failed to fetch weapon essence counts:', error)
   }
 }
 
-function onStatusPollingToggle(enabled: boolean | null) {
-  if (enabled === null) return
-  setScanningStatusPolling(enabled)
-  if (enabled) {
-    startPolling()
+let pollTimer: number | null = null
+
+function clearPolling() {
+  if (pollTimer !== null) {
+    window.clearTimeout(pollTimer)
+    pollTimer = null
   }
 }
 
-async function startPolling() {
-  // 获取一次
-  await fetchWeaponEssenceCounts()
-
+function schedulePolling(delay: number) {
+  clearPolling()
   if (!statusPollingEnabled.value) {
-    // 未启用轮询
     return
   }
 
-  const poll = async () => {
-    if (!statusPollingEnabled.value) {
-      // 轮询被禁用，停止
+  pollTimer = window.setTimeout(() => {
+    void pollStatusLoop()
+  }, delay)
+}
+
+async function pollStatusLoop() {
+  pollTimer = null
+
+  if (!statusPollingEnabled.value) {
+    return
+  }
+
+  if (isScanning.value) {
+    await fetchWeaponEssenceCounts()
+    schedulePolling(1000)
+    return
+  }
+
+  await Promise.allSettled([fetchWeaponEssenceCounts(), fetchDataUpdateStatus()])
+  schedulePolling(5000)
+}
+
+function restartPolling() {
+  if (!statusPollingEnabled.value) {
+    clearPolling()
+    return
+  }
+  schedulePolling(isScanning.value ? 1000 : 5000)
+}
+
+function onStatusPollingToggle(enabled: boolean | null) {
+  if (enabled === null) return
+
+  setScanningStatusPolling(enabled)
+  if (!enabled) {
+    clearPolling()
+    return
+  }
+
+  void Promise.allSettled([fetchWeaponEssenceCounts(), fetchDataUpdateStatus()])
+  restartPolling()
+}
+
+watch(isScanning, () => {
+  if (!statusPollingEnabled.value) {
+    return
+  }
+
+  void fetchWeaponEssenceCounts()
+  restartPolling()
+})
+
+watch(
+  () => Array.from(weaponsMap.value.keys()),
+  (currentWeaponIds, previousWeaponIds) => {
+    if (!hasLoadedConfig.value) {
       return
     }
 
-    if (isScanning.value) {
-      // 扫描中 快速轮询并更新
-      await fetchWeaponEssenceCounts()
-      setTimeout(poll, 1000)
-    } else {
-      // 待机 只检查状态不更新数据
-      setTimeout(poll, 5000)
-    }
-  }
+    const previousIds = previousWeaponIds ? new Set(previousWeaponIds) : new Set<string>()
+    const newWeaponIds = currentWeaponIds.filter((weaponId) => !previousIds.has(weaponId))
 
-  poll()
-}
+    if (newWeaponIds.length === 0) {
+      return
+    }
+
+    const autoSelectedNewWeaponIds = newWeaponIds.filter(
+      (weaponId) => !loadedTrashWeaponIds.value.includes(weaponId),
+    )
+
+    if (autoSelectedNewWeaponIds.length === 0) {
+      return
+    }
+
+    selectedWeaponIds.value = [
+      ...new Set([...selectedWeaponIds.value, ...autoSelectedNewWeaponIds]),
+    ]
+  },
+)
 
 onMounted(async () => {
-  await getConfig()
-  await startPolling()
+  if (!isLoaded.value) {
+    await fetchStaticData()
+  }
 
+  await getConfig()
+  await Promise.allSettled([fetchWeaponEssenceCounts(), fetchDataUpdateStatus()])
   watch(config, postConfig, { deep: true })
+  restartPolling()
+})
+
+onBeforeUnmount(() => {
+  clearPolling()
 })
 </script>
 
@@ -679,11 +902,6 @@ $weapon-icon-size: clamp(3rem, 16vw, 6rem);
 .group-icon {
   width: 2rem;
   height: 2rem;
-}
-
-.customize-button {
-  height: $weapon-icon-size !important;
-  width: $weapon-icon-size !important;
 }
 
 .weapon-grid {

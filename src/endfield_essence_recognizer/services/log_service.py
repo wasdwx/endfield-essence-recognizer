@@ -69,6 +69,7 @@ class LogService:
     ) -> None:
         self._connections: set[WebSocket] = set()
         self._queue: asyncio.Queue[str] = asyncio.Queue()
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._broadcast_task: asyncio.Task[None] | None = None
         self._handler_id: int | None = None
         self.batch_size = batch_size
@@ -154,6 +155,10 @@ class LogService:
         """
         Start the background broadcast loop.
         """
+        current_loop = asyncio.get_running_loop()
+        if self._loop is not current_loop:
+            self._queue = asyncio.Queue()
+            self._loop = current_loop
         if self._broadcast_task is None or self._broadcast_task.done():
             self._broadcast_task = asyncio.create_task(self.broadcast_loop())
             logger.debug("Log broadcast service started.")
@@ -170,6 +175,7 @@ class LogService:
                 # The task was cancelled as part of normal shutdown; this is expected.
                 pass
             self._broadcast_task = None
+        self._loop = None
 
         # Close all active connections
         for connection in list(self._connections):

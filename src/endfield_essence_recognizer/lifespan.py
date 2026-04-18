@@ -1,3 +1,5 @@
+﻿from __future__ import annotations
+
 import importlib.resources
 import mimetypes
 from contextlib import asynccontextmanager
@@ -11,52 +13,66 @@ from endfield_essence_recognizer.dependencies import (
     default_user_setting_manager,
     get_log_service,
 )
+from endfield_essence_recognizer.dependencies.services import (
+    get_scanner_service,
+    get_static_game_data,
+    sync_audio_service_enabled,
+)
 from endfield_essence_recognizer.hotkey_entrypoints import bind_hotkeys
 from endfield_essence_recognizer.utils.log import logger
 
 
-def log_welcome_message():
-    """Log a formatted welcome and usage guide message to the logger."""
+def log_welcome_message() -> None:
+    """输出启动欢迎信息与基本使用说明。"""
     message = """
 ==================================================
-<green><bold>终末地基质妙妙小工具已启动</></>
+<green><bold>终末地武器基质识别器</></>
 ==================================================
-<green><bold>使用前阅读：</></>
-  - 请使用<yellow><bold>管理员权限</></>运行本工具，否则无法捕获全局热键
-  - 支持分辨率自动缩放，按照原生 1080p 比例自动计算ROI缩放
-  - 请按 "<green><bold>N</></>" 键打开终末地<yellow><bold>贵重品库</></>并切换到<yellow><bold>武器基质</></>页面
-  - 在运行过程中，请确保终末地窗口<yellow><bold>置于前台</></>
+<green><bold>使用前请确认：</></>
+  - 游戏窗口保持前台，且分辨率与当前配置匹配
+  - 建议使用 1080p 或已适配的布局配置
+  - 先按 "<green><bold>N</></>" 打开背包，再切到武器基质页面
+  - 扫描过程中尽量不要切走终末地窗口
 
-<green><bold>功能介绍：</></>
-  - 按 "<green><bold>[</></>" 键识别当前基质，仅识别不操作
-  - 按 "<green><bold>]</></>" 键扫描所有基质，并根据设置，自动锁定或者解锁基质
-    基质扫描过程中再次按 "<green><bold>]</></>" 键中断扫描
+<green><bold>默认快捷键：</></>
+  - 按 "<green><bold>[</></>" 开始 / 停止扫描
+  - 按 "<green><bold>]</></>" 执行单次识别
   - 按 "<green><bold>Alt+Delete</></>" 退出程序
 
-  <cyan><bold>宝藏基质和养成材料：</></>可以在设置界面自定义。默认情况下，如果这个基质和任何一把武器能对上，则是宝藏，否则是养成材料。
+  <cyan><bold>提示：</></>如果你启用了自动翻页、声音提示或武器热更新，
+  程序会在启动后自动加载对应配置。
 ==================================================
 """
     logger.opt(colors=True).info(message)
 
 
-def init_load_user_setting():
-    """Load user settings at startup."""
+def init_load_user_setting() -> None:
+    """启动时加载用户配置。"""
     user_setting_manager = default_user_setting_manager()
     user_setting_manager.load_user_setting()
+    sync_audio_service_enabled(user_setting_manager.get_user_setting_ref().enable_sound)
 
 
-def init_mount_frontend_build(app: FastAPI, server_config: ServerConfig):
-    """Mount the frontend build directory to serve static files."""
+def log_last_scan_summary() -> None:
+    """打印上次持久化的扫描汇总。"""
+    try:
+        get_scanner_service().log_last_scan_summary(get_static_game_data())
+    except Exception as exc:
+        logger.warning(f"读取上次扫描汇总时加载静态数据失败：{exc}")
+
+
+def init_mount_frontend_build(app: FastAPI, server_config: ServerConfig) -> None:
+    """挂载前端静态构建目录。"""
     if server_config.dev_mode:
         return
 
-    # 确保正确的 MIME 类型映射，避免 Windows 系统上的问题
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("application/javascript", ".mjs")
     mimetypes.add_type("text/css", ".css")
     mimetypes.add_type("application/json", ".json")
     mimetypes.add_type("application/json", ".map")
     mimetypes.add_type("image/svg+xml", ".svg")
+    mimetypes.add_type("image/webp", ".webp")
     mimetypes.add_type("application/xml", ".xml")
     mimetypes.add_type("application/wasm", ".wasm")
     mimetypes.add_type("font/woff2", ".woff2")
@@ -70,10 +86,11 @@ def init_mount_frontend_build(app: FastAPI, server_config: ServerConfig):
         )
     else:
         dist_dir = Path(server_config.dist_dir)
+
     if dist_dir.exists():
         app.mount("/", StaticFiles(directory=dist_dir, html=True), name="dist")
     else:
-        logger.error("未找到前端构建文件夹，请先执行前端构建！")
+        logger.error("未找到前端构建目录，无法挂载 Web UI。")
 
 
 @asynccontextmanager
@@ -84,5 +101,6 @@ async def lifespan(app: FastAPI):
         init_mount_frontend_build(app, server_config)
         init_load_user_setting()
         log_welcome_message()
+        log_last_scan_summary()
         with bind_hotkeys(server_config):
             yield

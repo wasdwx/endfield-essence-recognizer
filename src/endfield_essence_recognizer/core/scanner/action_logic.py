@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -20,7 +22,7 @@ class ActionType(Enum):
 
 @dataclass
 class ScannerAction:
-    """Represents a physical action to take and the feedback to give."""
+    """表示要执行的实际操作及其反馈文案。"""
 
     type: ActionType
     log_message: str
@@ -31,38 +33,18 @@ def decide_actions(
     evaluation: EvaluationResult,
     setting: UserSetting,
 ) -> list[ScannerAction]:
-    """
-    Decides what physical actions to perform based on the current state vs desired quality.
-
-    Logic:
-    - If locked but should be unlocked (based on Trash/Treasure settings), return CLICK_LOCK action with a Chinese feedback message indicating it was unlocked.
-    - If unlocked but should be locked, return CLICK_LOCK action with a Chinese feedback message indicating it was locked.
-    - If abandoned but should be kept, return CLICK_ABANDON with a Chinese feedback message indicating abandonment was cancelled.
-    - If kept but should be abandoned, return CLICK_ABANDON with a Chinese feedback message indicating it was marked as abandoned.
-
-    Note:
-    - Messages are localized (Chinese), and the exact text is implementation-specific but should align with the current implementation for consistency.
-
-    Args:
-        data: Current state of the essence (locked?, observed?).
-        evaluation: The judged quality (Treasure/Trash) from evaluate_essence.
-        setting: User preferences for actions (e.g. treasure_action=LOCK).
-
-    Returns:
-        An ordered list of actions to apply to the game client sequentially.
-    """
+    """根据识别结果和用户设置决定要执行的按钮操作。"""
     if evaluation.quality == EssenceQuality.SKIP:
         return []
 
     actions: list[ScannerAction] = []
 
-    # --- Lock Logic ---
     should_lock = False
     should_unlock = False
 
     if evaluation.quality == EssenceQuality.TREASURE:
         target_action = setting.treasure_action
-    else:  # TRASH
+    else:
         target_action = setting.trash_action
 
     if target_action == Action.LOCK:
@@ -79,17 +61,17 @@ def decide_actions(
         actions.append(
             ScannerAction(
                 type=ActionType.CLICK_LOCK,
-                log_message="给你自动锁上了，记得保管好哦！(*/ω＼*)",
+                log_message="给你自动锁上了，记得保管好哦！",
             )
         )
     elif data.lock_label == LockStatusLabel.LOCKED and should_unlock:
         actions.append(
             ScannerAction(
-                type=ActionType.CLICK_LOCK, log_message="给你自动解锁了！ヾ(≧▽≦*)o"
+                type=ActionType.CLICK_LOCK,
+                log_message="给你自动解锁了！",
             )
         )
 
-    # --- Abandon Logic ---
     should_abandon = False
     should_unabandon = False
 
@@ -107,14 +89,14 @@ def decide_actions(
         actions.append(
             ScannerAction(
                 type=ActionType.CLICK_ABANDON,
-                log_message="给你自动标记为弃用了！(￣︶￣)>",
+                log_message="给你自动标记为弃用了。",
             )
         )
     elif data.abandon_label == AbandonStatusLabel.ABANDONED and should_unabandon:
         actions.append(
             ScannerAction(
                 type=ActionType.CLICK_ABANDON,
-                log_message="给你自动取消弃用啦！(＾Ｕ＾)ノ~ＹＯ",
+                log_message="给你自动取消弃用了！",
             )
         )
 

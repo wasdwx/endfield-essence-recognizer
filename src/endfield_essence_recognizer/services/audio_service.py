@@ -83,14 +83,29 @@ class AudioService:
     def __init__(self, profile: AudioServiceProfile) -> None:
         self._enable_player = SoundPlayer(profile.enable_sound)
         self._disable_player = SoundPlayer(profile.disable_sound)
+        self._enabled = True
+
+    def set_enabled(self, enabled: bool) -> None:
+        """Enable or disable sound playback."""
+        self._enabled = enabled
+
+    def is_enabled(self) -> bool:
+        """Return whether sound playback is enabled."""
+        return self._enabled
 
     def play_enable(self) -> None:
         """Play the enable notification sound."""
+        if not self._enabled:
+            logger.debug("Enable sound is disabled, skipping playback")
+            return
         logger.debug("Playing enable sound")
         self._safe_play(self._enable_player)
 
     def play_disable(self) -> None:
         """Play the disable notification sound."""
+        if not self._enabled:
+            logger.debug("Disable sound is disabled, skipping playback")
+            return
         logger.debug("Playing disable sound")
         self._safe_play(self._disable_player)
 

@@ -12,6 +12,14 @@ from endfield_essence_recognizer.services.static_data_service import StaticDataS
 def static_game_data():
     # We can use a real one or mock it. Using real one for integration-like unit test.
     data_root = get_root_dir() / "resources" / "data" / "v2"
+    required_files = (
+        "Weapon.json",
+        "EssenceStat.json",
+        "WeaponType.json",
+        "RarityColor.json",
+    )
+    if any(not (data_root / name).is_file() for name in required_files):
+        pytest.skip("Skipping test because static game data files are unavailable.")
     return StaticGameData(data_root)
 
 
