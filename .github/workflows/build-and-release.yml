@@ -1,0 +1,114 @@
+﻿name: Build with PyInstaller and Release
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        os: [windows]
+
+    runs-on: ${{ matrix.os }}-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Set up node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: |
+          uv sync --no-dev --group build
+
+      - name: Build with PyInstaller
+        run: |
+          uv run --no-dev --group build pyinstaller main.spec
+
+      - name: Generate update manifest
+        run: |
+          uv run python scripts/generate_manifest.py --dist-dir dist/endfield-essence-recognizer
+
+      - name: Zip the built files
+        shell: pwsh
+        run: |
+          cd dist
+          Compress-Archive -Path "endfield-essence-recognizer/*" -DestinationPath "endfield-essence-recognizer-${{ github.ref_name }}-${{ matrix.os }}.zip"
+
+      - name: Generate GitHub Pages version.json
+        shell: pwsh
+        run: |
+          $assetName = "endfield-essence-recognizer-${{ github.ref_name }}-${{ matrix.os }}.zip"
+          $downloadUrl = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$assetName"
+          uv run python scripts/generate_version_json.py `
+            --version "${{ github.ref_name }}" `
+            --download-url "$downloadUrl" `
+            --asset-path "dist/$assetName" `
+            --output "dist/pages/version.json"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/endfield-essence-recognizer-${{ github.ref_name }}-${{ matrix.os }}.zip
+          generate_release_notes: true
+
+      - name: Update gh-pages version manifest
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $pagesDir = Join-Path $env:RUNNER_TEMP "gh-pages"
+          git clone "https://x-access-token:$env:GITHUB_TOKEN@github.com/${{ github.repository }}.git" $pagesDir
+          Set-Location $pagesDir
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin gh-pages --depth 1 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            git checkout -B gh-pages origin/gh-pages
+          }
+          else {
+            git checkout --orphan gh-pages
+            Get-ChildItem -Force | Where-Object { $_.Name -ne '.git' } | Remove-Item -Recurse -Force
+          }
+
+          Copy-Item "$env:GITHUB_WORKSPACE\dist\pages\version.json" ".\version.json" -Force
+          if (-not (Test-Path ".nojekyll")) {
+            New-Item -ItemType File ".nojekyll" | Out-Null
+          }
+
+          git add version.json .nojekyll
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "No version manifest changes to commit."
+            exit 0
+          }
+
+          git commit -m "Update version manifest for ${{ github.ref_name }}"
+          git push origin gh-pages

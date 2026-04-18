@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# logs
+logs/
+
+# screenshots by the server
+screenshots/
+
+# local app settings
+config.json
+.env
+
+# enfield data table config
+src/endfield_essence_recognizer/data/endfielddata/TableCfg/**.json
+
+AGENTS.md

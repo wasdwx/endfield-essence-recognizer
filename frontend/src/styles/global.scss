@@ -1,0 +1,50 @@
+@use '@/styles/settings';
+
+$mono-font:
+  'Jetbrains Mono', 'Google Sans Code', 'Cascadia Mono', Consolas, settings.$sans-font, monospace;
+$paragraph-margin: 0.6em;
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-block-start: calc(0.8em + 0.8rem);
+  margin-block-end: calc(0.4em + 0.4rem);
+}
+
+code,
+pre {
+  font-family: $mono-font;
+}
+
+p {
+  margin-block: $paragraph-margin;
+}
+
+ul,
+ol {
+  margin-block: $paragraph-margin;
+}
+
+ul {
+  padding-inline-start: 1.5em;
+}
+
+ol {
+  padding-inline-start: 2em;
+}
+
+li {
+  margin-block: $paragraph-margin;
+}
+
+ul > li {
+  padding-inline-start: 0.5em;
+}
+
+ul > li::marker,
+ol > li::marker {
+  font-family: $mono-font;
+}

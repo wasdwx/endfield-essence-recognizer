@@ -1,0 +1,128 @@
+﻿import uvicorn
+from fastapi import (
+    FastAPI,
+    Request,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from endfield_essence_recognizer.api.router import api_router, ws_router
+from endfield_essence_recognizer.core.config import ServerConfig, get_server_config
+from endfield_essence_recognizer.core.path import get_root_dir
+from endfield_essence_recognizer.exceptions import (
+    UnsupportedResolutionError,
+    WindowNotActiveError,
+    WindowNotFoundError,
+)
+from endfield_essence_recognizer.lifespan import lifespan
+from endfield_essence_recognizer.utils.log import (
+    LOGGING_CONFIG,
+)
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,  # type: ignore[invalid-argument-type]
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+
+
+@app.exception_handler(WindowNotFoundError)
+async def window_not_found_exception_handler(
+    _request: Request, exc: WindowNotFoundError
+):
+    """
+    WindowNotFoundError is raised when the target window is not found.
+    Generally this means the game window is not open, and therefore we
+    cannot perform the requested operation.
+
+    We return a 404 status code here to indicate that the target window
+    is "not found".
+    """
+    return JSONResponse(
+        status_code=404,
+        content={'detail': str(exc)},
+    )
+
+
+@app.exception_handler(WindowNotActiveError)
+async def window_not_active_exception_handler(
+    _request: Request, exc: WindowNotActiveError
+):
+    """
+    WindowNotActiveError is raised when the the active window is
+    not what we expect. Normally this means the user triggers an action
+    when either the game window or the webview is not in the foreground.
+
+    We return a 404 status code here to indicate that the target window
+    is "not found" in the foreground.
+    """
+    return JSONResponse(
+        status_code=404,
+        content={'detail': str(exc)},
+    )
+
+
+@app.exception_handler(UnsupportedResolutionError)
+async def unsupported_resolution_exception_handler(
+    _request: Request, exc: UnsupportedResolutionError
+):
+    """
+    UnsupportedResolutionError are raised when the resolution of the game
+    window is not supported by the application.
+
+    We return a 400 status code here to indicate that the client made
+    a bad request.
+    """
+    return JSONResponse(
+        status_code=400,
+        content={'detail': str(exc)},
+    )
+
+
+# Include routers
+app.include_router(api_router)
+app.include_router(ws_router)
+
+# Mount game data static files
+app.mount(
+    '/api/data',
+    StaticFiles(
+        directory=get_root_dir() / 'resources' / 'data',
+        check_dir=False,
+    ),
+    name='data',
+)
+app.mount(
+    '/api/assets',
+    StaticFiles(
+        directory=get_root_dir() / 'resources' / 'assets',
+        check_dir=False,
+    ),
+    name='assets',
+)
+app.mount(
+    '/api/images',
+    StaticFiles(
+        directory=get_root_dir() / 'resources' / 'images',
+        check_dir=False,
+    ),
+    name='images',
+)
+
+
+def get_server() -> uvicorn.Server:
+    cfg: ServerConfig = get_server_config()
+    api_host = cfg.api_host
+    api_port = cfg.api_port
+    config = uvicorn.Config(
+        app=app,
+        host=api_host,
+        port=api_port,
+        log_config=LOGGING_CONFIG,
+    )
+    server = uvicorn.Server(config)
+    return server

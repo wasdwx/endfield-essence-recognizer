@@ -1,0 +1,17 @@
+/**
+ * src/styles/settings.scss
+ *
+ * Configures SASS variables and Vuetify overwrites
+ */
+
+// https://vuetifyjs.com/features/sass-variables/`
+// @use 'vuetify/settings' with (
+//   $color-pack: false
+// );
+
+$sans-font: 'HarmonyOS Sans SC', sans-serif;
+
+@use 'vuetify/settings' with (
+  $body-font-family: $sans-font,
+  $heading-font-family: $sans-font
+);

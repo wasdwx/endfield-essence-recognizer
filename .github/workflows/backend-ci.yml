@@ -1,0 +1,78 @@
+name: backend-ci
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths: # Only run on backend-related changes
+      - "src/**"
+      - "tests/**"
+      - "ruff.toml"
+      - "uv.lock"
+      - "pyproject.toml"
+      - ".github/workflows/**"
+
+  push:
+    branches:
+      - main
+      - dev
+      # Run on all changes
+
+  workflow_dispatch:
+
+# Ensure that only one CI run happens per PR/branch at a time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-lint:
+    name: Lint and format check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: ruff check
+        run: uvx ruff check . --output-format=github
+
+      - name: ruff format check
+        run: uvx ruff format --check .
+        if: always() # Always run to report formatting issues
+
+  backend-test:
+    name: Run tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run pytest tests -v --ci -ra --junitxml=pytest-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: pytest-results.xml
+          retention-days: 1
