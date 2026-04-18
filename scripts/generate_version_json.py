@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from packaging.version import InvalidVersion, Version
+
 
 def read_version_from_pyproject(project_root: Path) -> str:
     pyproject_path = project_root / "pyproject.toml"
@@ -19,8 +21,23 @@ def read_version_from_pyproject(project_root: Path) -> str:
     raise ValueError("pyproject.toml 中未找到 version 字段")
 
 
-def normalize_version(value: str) -> str:
-    return value[1:] if value.startswith("v") else value
+def normalize_version(value: str, fallback: str | None = None) -> str:
+    normalized = value[1:] if value.startswith("v") else value
+
+    try:
+        return str(Version(normalized))
+    except InvalidVersion:
+        if "-" in normalized:
+            candidate = normalized.split("-", maxsplit=1)[0].strip()
+            try:
+                return str(Version(candidate))
+            except InvalidVersion:
+                pass
+
+        if fallback is not None:
+            return str(Version(fallback))
+
+        raise
 
 
 def compute_file_sha256(file_path: Path) -> str:
@@ -61,8 +78,10 @@ def main() -> None:
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parent.parent
+    pyproject_version = read_version_from_pyproject(project_root)
     latest_version = normalize_version(
-        args.version or read_version_from_pyproject(project_root)
+        args.version or pyproject_version,
+        fallback=pyproject_version,
     )
 
     sha256 = args.sha256
