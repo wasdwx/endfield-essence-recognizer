@@ -1,11 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import importlib.resources
 import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from endfield_essence_recognizer.core.config import ServerConfig, get_server_config
@@ -20,6 +20,9 @@ from endfield_essence_recognizer.dependencies.services import (
 )
 from endfield_essence_recognizer.hotkey_entrypoints import bind_hotkeys
 from endfield_essence_recognizer.utils.log import logger
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 def log_welcome_message() -> None:

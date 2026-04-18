@@ -8,9 +8,7 @@ from packaging import version
 from endfield_essence_recognizer.utils.log import logger
 from endfield_essence_recognizer.version import __version__
 
-UPDATE_CHECK_URL = (
-    "https://wasdwx.github.io/endfield-essence-recognizer/version.json"
-)
+UPDATE_CHECK_URL = "https://wasdwx.github.io/endfield-essence-recognizer/version.json"
 
 
 class UpdateCheckError(Exception):

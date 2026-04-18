@@ -21,13 +21,13 @@ if any(not (_DATA_ROOT / name).is_file() for name in _REQUIRED_FILES):
         allow_module_level=True,
     )
 
-from endfield_essence_recognizer.core.recognition.tasks.attribute import (
-    build_attribute_profile,
-)
-from endfield_essence_recognizer.game_data.static_game_data import StaticGameData
-
 
 def get_attribute_templates():
+    from endfield_essence_recognizer.core.recognition.tasks.attribute import (
+        build_attribute_profile,
+    )
+    from endfield_essence_recognizer.game_data.static_game_data import StaticGameData
+
     static_game_data = StaticGameData(_DATA_ROOT)
     profile = build_attribute_profile(static_game_data)
     return profile.templates

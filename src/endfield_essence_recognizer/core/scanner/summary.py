@@ -181,7 +181,9 @@ def iter_scan_summary_log_messages(
 
     if summary.weapon_counts:
         yield f"{SUMMARY_LOG_PREFIX} 命中武器基质统计："
-        for weapon_id, count in sort_weapon_counts(static_game_data, summary.weapon_counts):
+        for weapon_id, count in sort_weapon_counts(
+            static_game_data, summary.weapon_counts
+        ):
             yield format_summary_weapon(
                 static_game_data,
                 weapon_id,

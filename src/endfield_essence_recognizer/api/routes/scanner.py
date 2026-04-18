@@ -28,7 +28,7 @@ from endfield_essence_recognizer.schemas.scan_summary import (
 from endfield_essence_recognizer.schemas.scanner import TaskType
 from endfield_essence_recognizer.services.scanner_service import ScannerService
 
-router = APIRouter(prefix='', tags=['scanner'])
+router = APIRouter(prefix="", tags=["scanner"])
 
 
 class ToggleScanningRequest(BaseModel):
@@ -36,7 +36,7 @@ class ToggleScanningRequest(BaseModel):
 
 
 @router.post(
-    '/recognize_once',
+    "/recognize_once",
     dependencies=[
         Depends(require_game_or_webview_is_active),
         Depends(require_game_window_exists),
@@ -50,7 +50,7 @@ async def recognize_once(
 
 
 @router.post(
-    '/start_scanning',
+    "/start_scanning",
     dependencies=[
         Depends(require_game_or_webview_is_active),
         Depends(require_game_window_exists),
@@ -64,7 +64,7 @@ async def start_scanning(
 
 
 @router.post(
-    '/toggle_scanning',
+    "/toggle_scanning",
     dependencies=[
         Depends(require_game_or_webview_is_active),
         Depends(require_game_window_exists),
@@ -83,26 +83,26 @@ async def toggle_scanning(
             case TaskType.DELIVERY_CLAIM:
                 return delivery_engine
             case _:
-                raise ValueError(f'Unsupported task type: {request.task_type}')
+                raise ValueError(f"Unsupported task type: {request.task_type}")
 
     scanner_service.toggle_scan(scanner_factory=get_engine)
 
 
-@router.get('/weapon_essence_counts')
+@router.get("/weapon_essence_counts")
 async def get_weapon_essence_counts(
     scanner_service: ScannerService = Depends(get_scanner_service),
 ) -> dict[str, int]:
     return scanner_service.get_weapon_essence_counts()
 
 
-@router.get('/scanning_status')
+@router.get("/scanning_status")
 async def get_scanning_status(
     scanner_service: ScannerService = Depends(get_scanner_service),
 ) -> dict[str, bool]:
-    return {'is_running': scanner_service.is_running()}
+    return {"is_running": scanner_service.is_running()}
 
 
-@router.get('/last_scan_summary', response_model=LastScanSummaryResponse | None)
+@router.get("/last_scan_summary", response_model=LastScanSummaryResponse | None)
 async def get_last_scan_summary(
     scanner_service: ScannerService = Depends(get_scanner_service),
     static_game_data: StaticGameData = Depends(get_static_game_data),
@@ -126,14 +126,14 @@ async def get_last_scan_summary(
 
     def resolve_stat_name(stat_id: str | None) -> str:
         if stat_id is None:
-            return '??'
+            return "??"
         stat = static_game_data.get_stat(stat_id)
         return stat.name if stat is not None else stat_id
 
     custom_summaries = [
         LastScanCustomSummary(
             key=custom.key,
-            label=' / '.join(
+            label=" / ".join(
                 [
                     resolve_stat_name(custom.attribute),
                     resolve_stat_name(custom.secondary),

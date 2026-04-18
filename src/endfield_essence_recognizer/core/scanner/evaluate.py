@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from endfield_essence_recognizer.core.recognition import RarityLabel
 from endfield_essence_recognizer.core.scanner.models import (
     CustomTreasureMatch,
@@ -7,11 +9,13 @@ from endfield_essence_recognizer.core.scanner.models import (
     EssenceQuality,
     EvaluationResult,
 )
-from endfield_essence_recognizer.game_data.static_game_data import StaticGameData
 from endfield_essence_recognizer.schemas.user_setting import (
     NonFiveStarBehavior,
     UserSetting,
 )
+
+if TYPE_CHECKING:
+    from endfield_essence_recognizer.game_data.static_game_data import StaticGameData
 
 
 def _build_custom_match_key(
@@ -33,8 +37,7 @@ def evaluate_essence(
             return EvaluationResult(
                 quality=EssenceQuality.SKIP,
                 log_message=(
-                    "检测到<dim>非无瑕</>基质，按设置"
-                    "<yellow><bold>结束本次扫描</></>。"
+                    "检测到<dim>非无瑕</>基质，按设置<yellow><bold>结束本次扫描</></>。"
                 ),
                 should_stop_scan=True,
             )
@@ -132,8 +135,7 @@ def evaluate_essence(
         return EvaluationResult(
             quality=EssenceQuality.TRASH,
             log_message=(
-                "未命中任何武器适配，判定为"
-                "<red><bold><underline>垃圾</></></>。"
+                "未命中任何武器适配，判定为<red><bold><underline>垃圾</></></>。"
             ),
             is_high_level=False,
         )

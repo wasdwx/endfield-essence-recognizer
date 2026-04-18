@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 
-from .routes import config, data_update, scanner, screenshot, static_data, system, update
+from .routes import (
+    config,
+    data_update,
+    scanner,
+    screenshot,
+    static_data,
+    system,
+    update,
+)
 from .websockets import logs, update_progress
 
 api_router = APIRouter(prefix="/api")
